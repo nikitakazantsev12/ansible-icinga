@@ -1,0 +1,15 @@
+---
+# handlers file for icinga_service_template
+
+- name: deploy
+  uri:
+    headers:
+      Accept: application/json
+    validate_certs: no
+    url: "{{ icinga_host }}/director/config/deploy"
+    method: POST
+    user: "{{ icinga_user }}"
+    password: "{{ icinga_pass }}"
+    return_content: yes
+  delegate_to: localhost
+  run_once: true

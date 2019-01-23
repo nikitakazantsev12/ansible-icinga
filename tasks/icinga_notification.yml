@@ -1,0 +1,54 @@
+---
+# tasks file for icinga_notification
+
+- name: see if notification apply rule already exists
+  uri:
+    headers:
+      Accept: application/json
+    validate_certs: no
+    url: "{{ icinga_host }}/director/notification?name={{ item.object_name }}"
+    method: GET
+    user: "{{ icinga_user }}"
+    password: "{{ icinga_pass }}"
+    return_content: yes
+  register: register_notifications
+  with_items: "{{ notifications }}"
+  failed_when: false
+
+- name: create notification apply rule if it does not exist
+  uri:
+    headers:
+      Accept: application/json
+    validate_certs: no
+    url: "{{ icinga_host }}/director/notification"
+    method: POST
+    user: "{{ icinga_user }}"
+    password: "{{ icinga_pass }}"
+    body: "{{ item.item | to_json }}"
+    body_format: json
+    return_content: yes
+  register: notifications_created
+  with_items: "{{ register_notifications.results }}"
+  when: "'error' in item.content"
+  changed_when: notifications_created.status == 201
+  failed_when: notifications_created.status != 201
+  notify: deploy
+  
+- name: modify notification apply rule if it does exist
+  uri:
+    headers:
+      Accept: application/json
+    validate_certs: no
+    url: "{{ icinga_host }}/director/notification?name={{ item.item.object_name }}"
+    method: POST
+    user: "{{ icinga_user }}"
+    password: "{{ icinga_pass }}"
+    body: "{{ item.item | to_json }}"
+    body_format: json
+    return_content: yes
+  register: notifications_modified
+  with_items: "{{ register_notifications.results }}"
+  when: "'error' not in item.content"
+  changed_when: notifications_modified.status == 200
+  failed_when: notifications_modified.status !=  200 and notifications_modified.status != 304
+  notify: deploy

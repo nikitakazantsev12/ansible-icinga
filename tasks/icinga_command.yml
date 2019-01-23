@@ -1,0 +1,54 @@
+---
+# tasks file for icinga_command
+
+- name: see if a command already exists
+  uri:
+    headers:
+      Accept: application/json
+    validate_certs: no
+    url: "{{ icinga_host }}/director/command?name={{ item.object_name }}"
+    method: GET
+    user: "{{ icinga_user }}"
+    password: "{{ icinga_pass }}"
+    return_content: yes
+  register: command_presence
+  with_items: "{{ check_commands }}"
+  failed_when: false
+
+- name: create command if it does not exist
+  uri:
+    headers:
+      Accept: application/json
+    validate_certs: no
+    url: "{{ icinga_host }}/director/command"
+    method: POST
+    user: "{{ icinga_user }}"
+    password: "{{ icinga_pass }}"
+    body: "{{ item.item | to_json }}"
+    body_format: json
+    return_content: yes
+  register: command_created
+  with_items: "{{ command_presence.results }}"
+  when: "'error' in item.content"
+  changed_when: command_created.status == 201
+  failed_when: command_created.status != 201
+  notify: deploy
+  
+- name: modify command if it does exist
+  uri:
+    headers:
+      Accept: application/json
+    validate_certs: no
+    url: "{{ icinga_host }}/director/command?name={{ item.item.object_name }}"
+    method: POST
+    user: "{{ icinga_user }}"
+    password: "{{ icinga_pass }}"
+    body: "{{ item.item | to_json }}"
+    body_format: json
+    return_content: yes
+  register: command_modified
+  with_items: "{{ command_presence.results }}"
+  when: "'error' not in item.content"
+  changed_when: command_modified.status == 200
+  failed_when: command_modified.status !=  200 and command_modified.status != 304
+  notify: deploy

@@ -1,0 +1,17 @@
+- include_tasks: icinga_service_template.yml
+  when: task_set == "icinga_service_template"
+
+- include_tasks: icinga_service_apply.yml
+  when: task_set == "icinga_service_apply"
+
+- include_tasks: icinga_command.yml
+  when: task_set == "icinga_command"
+
+- include_tasks: icinga_notification.yml
+  when: task_set == "icinga_notification"
+
+- include_tasks: icinga_user.yml
+  when: task_set == "icinga_user"
+
+- include_tasks: icinga_host_vars.yml
+  when: task_set == "icinga_host_vars"

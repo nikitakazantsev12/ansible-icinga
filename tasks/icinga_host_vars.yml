@@ -1,0 +1,57 @@
+---
+# tasks file for icinga_host_vars
+
+- name: set icinga host vars
+  block:
+
+  - name: see if host exists
+    uri:
+      headers:
+        Accept: application/json
+      validate_certs: no
+      url: "{{ icinga_host }}/director/host?name={{ inventory_hostname }}.{{ dav3_domain }}"
+      method: GET
+      user: "{{ icinga_user }}"
+      password: "{{ icinga_pass }}"
+      return_content: yes
+    register: icinga_host_presence
+    failed_when: false
+  
+  - name: create host and set vars if host does not exist
+    uri:
+      headers:
+        Accept: application/json
+      validate_certs: no
+      url: "{{ icinga_host }}/director/host"
+      method: POST
+      user: "{{ icinga_user }}"
+      password: "{{ icinga_pass }}"
+      body: "{\"object_name\":\"{{ inventory_hostname }}.{{ dav3_domain }}\", \"display_name\":\"{{ inventory_hostname }}\", \"object_type\": \"object\", \"imports\":\"{{ icinga2.template }}\", \"vars\":{{ icinga_host_vars | to_json }}}"
+      body_format: json
+      return_content: yes
+    register: icinga_host_vars_set
+    when: "'error' in icinga_host_presence.content"
+    changed_when: icinga_host_vars_set.status == 201
+    failed_when: icinga_host_vars_set.status != 201
+    notify: deploy
+  
+  - name: modify host vars if host exists
+    uri:
+      headers:
+        Accept: application/json
+      validate_certs: no
+      url: "{{ icinga_host }}/director/host?name={{ inventory_hostname }}.{{ dav3_domain }}"
+      method: POST
+      user: "{{ icinga_user }}"
+      password: "{{ icinga_pass }}"
+      body: "{\"object_name\":\"{{ inventory_hostname }}.{{ dav3_domain }}\", \"display_name\":\"{{ inventory_hostname }}\", \"object_type\": \"object\", \"imports\":\"{{ icinga2.template }}\", \"vars\":{{ icinga_host_vars | to_json }}}"
+      body_format: json
+      return_content: yes
+    register: icinga_host_vars_changed
+    when: "'error' not in icinga_host_presence.content"
+    changed_when: icinga_host_vars_changed.status == 200
+    failed_when: icinga_host_vars_changed.status !=  200 and icinga_host_vars_changed.status != 304
+    notify: deploy
+
+  when: icinga_host_vars is defined
+  delegate_to: localhost

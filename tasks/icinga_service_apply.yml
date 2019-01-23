@@ -1,0 +1,46 @@
+---
+# tasks file for icinga_service_apply
+- name: get an apply rule id if it exists
+  shell: "curl -s -X GET -u \"{{ icinga_user }}:{{ icinga_pass }}\" \"{{ icinga_host }}/director/services/applyrules/show?q={{ item.object_name }}\" | grep -Po '(?<=href=\"/director/service/edit\\?id=)[^\">{{ item.object_name }}]*'"
+  with_items: "{{ apply_rules }}"
+  register: apply_rule_id
+  failed_when: apply_rule_id.stdout_lines|list|length > 1
+  changed_when: false
+
+- name: create apply rule if it does not exist
+  uri:
+    headers:
+      Accept: application/json
+    validate_certs: no
+    url: "{{ icinga_host }}/director/service"
+    method: POST
+    user: "{{ icinga_user }}"
+    password: "{{ icinga_pass }}"
+    body: "{{ item.item | to_json }}"
+    body_format: json
+    return_content: yes
+  register: apply_rule_created
+  with_items: "{{ apply_rule_id.results }}"
+  when: item.rc == 1
+  changed_when: apply_rule_created.status == 201
+  failed_when: apply_rule_created.status != 201
+  notify: deploy
+
+- name: modify apply rule if it does exist
+  uri:
+    headers:
+      Accept: application/json
+    validate_certs: no
+    url: "{{ icinga_host }}/director/service?id={{ item.stdout }}"
+    method: POST
+    user: "{{ icinga_user }}"
+    password: "{{ icinga_pass }}"
+    body: "{{ item.item | to_json }}"
+    body_format: json
+    return_content: yes
+  register: apply_rule_modified
+  with_items: "{{ apply_rule_id.results }}"
+  when: item.rc == 0
+  changed_when: apply_rule_modified.status == 200
+  failed_when: apply_rule_modified.status !=  200 and apply_rule_modified.status != 304
+  notify: deploy

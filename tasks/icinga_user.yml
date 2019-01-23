@@ -1,0 +1,54 @@
+---
+# tasks file for icinga_users
+
+- name: see if user already exists
+  uri:
+    headers:
+      Accept: application/json
+    validate_certs: no
+    url: "{{ icinga_host }}/director/users?name={{ item.object_name }}"
+    method: GET
+    user: "{{ icinga_user }}"
+    password: "{{ icinga_pass }}"
+    return_content: yes
+  register: register_users
+  with_items: "{{ users }}"
+  failed_when: false
+
+- name: create user if it does not exist
+  uri:
+    headers:
+      Accept: application/json
+    validate_certs: no
+    url: "{{ icinga_host }}/director/users"
+    method: POST
+    user: "{{ icinga_user }}"
+    password: "{{ icinga_pass }}"
+    body: "{{ item.item | to_json }}"
+    body_format: json
+    return_content: yes
+  register: users_created
+  with_items: "{{ register_users.results }}"
+  when: "'error' in item.content"
+  changed_when: users_created.status == 201
+  failed_when: users_created.status != 201
+  notify: deploy
+  
+- name: modify users if it does exist
+  uri:
+    headers:
+      Accept: application/json
+    validate_certs: no
+    url: "{{ icinga_host }}/director/users?name={{ item.item.object_name }}"
+    method: POST
+    user: "{{ icinga_user }}"
+    password: "{{ icinga_pass }}"
+    body: "{{ item.item | to_json }}"
+    body_format: json
+    return_content: yes
+  register: users_modified
+  with_items: "{{ register_users.results }}"
+  when: "'error' not in item.content"
+  changed_when: users_modified.status == 200
+  failed_when: users_modified.status !=  200 and users_modified.status != 304
+  notify: deploy
